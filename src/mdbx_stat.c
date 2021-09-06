@@ -43,13 +43,47 @@ static void signal_handler(int sig) {
 
 #endif /* !WINDOWS */
 
-static void print_stat(MDBX_stat *ms) {
-  printf("  Pagesize: %u\n", ms->ms_psize);
-  printf("  Tree depth: %u\n", ms->ms_depth);
-  printf("  Branch pages: %" PRIu64 "\n", ms->ms_branch_pages);
-  printf("  Leaf pages: %" PRIu64 "\n", ms->ms_leaf_pages);
-  printf("  Overflow pages: %" PRIu64 "\n", ms->ms_overflow_pages);
-  printf("  Entries: %" PRIu64 "\n", ms->ms_entries);
+static void print_csv_header(bool print_total_size) {
+  printf("%s,%s,%s,%s,%s,%s,%s", "Bucket", "Pagesize", "Tree depth",
+         "Branch pages", "Leaf pages", "Overflow pages", "Entries");
+  if (print_total_size) {
+    printf(",%s", "Total size");
+  }
+  printf("\n");
+}
+
+static void print_bucket_name(const char *bucket, bool csv) {
+  if (csv) {
+    printf("%s,", bucket);
+  } else {
+    printf("Status of %s\n", bucket);
+  }
+}
+
+static void print_stat(MDBX_stat *ms, bool csv, bool print_total_size) {
+  uint64_t total_size =
+      (ms->ms_leaf_pages + ms->ms_branch_pages + ms->ms_overflow_pages) *
+      ms->ms_psize;
+
+  if (csv) {
+    printf("%u,%u,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "",
+           ms->ms_psize, ms->ms_depth, ms->ms_branch_pages, ms->ms_leaf_pages,
+           ms->ms_overflow_pages, ms->ms_entries);
+    if (print_total_size) {
+      printf(",%" PRIu64 "", total_size);
+    }
+    printf("\n");
+  } else {
+    printf("  Pagesize: %u\n", ms->ms_psize);
+    printf("  Tree depth: %u\n", ms->ms_depth);
+    printf("  Branch pages: %" PRIu64 "\n", ms->ms_branch_pages);
+    printf("  Leaf pages: %" PRIu64 "\n", ms->ms_leaf_pages);
+    printf("  Overflow pages: %" PRIu64 "\n", ms->ms_overflow_pages);
+    printf("  Entries: %" PRIu64 "\n", ms->ms_entries);
+    if (print_total_size) {
+      printf("  Total size: %" PRIu64 "\n", total_size);
+    }
+  }
 }
 
 static void usage(const char *prog) {
@@ -63,7 +97,9 @@ static void usage(const char *prog) {
           "  -r\t\tshow readers\n"
           "  -a\t\tprint stat of main DB and all subDBs\n"
           "  -s name\tprint stat of only the specified named subDB\n"
-          "  \t\tby default print stat of only the main DB\n",
+          "  \t\tby default print stat of only the main DB\n"
+          "  -i \t\tprint total size for each subDB\n"
+          "  -c \t\tprint subDB stats in CSV format\n",
           prog);
   exit(EXIT_FAILURE);
 }
@@ -108,6 +144,8 @@ int main(int argc, char *argv[]) {
   char *subname = nullptr;
   bool alldbs = false, envinfo = false, pgop = false;
   int freinfo = 0, rdrinfo = 0;
+  bool csv = false;
+  bool print_total_size = false;
 
   if (argc < 2)
     usage(prog);
@@ -121,6 +159,8 @@ int main(int argc, char *argv[]) {
                        "f"
                        "n"
                        "r"
+                       "c"
+                       "i"
                        "s:")) != EOF) {
     switch (opt) {
     case 'V':
@@ -158,6 +198,12 @@ int main(int argc, char *argv[]) {
       break;
     case 'r':
       rdrinfo += 1;
+      break;
+    case 'c':
+      csv = true;
+      break;
+    case 'i':
+      print_total_size = true;
       break;
     case 's':
       if (alldbs)
@@ -321,8 +367,12 @@ int main(int argc, char *argv[]) {
       goto txn_abort;
   }
 
+  if (csv) {
+    print_csv_header(print_total_size);
+  }
+
   if (freinfo) {
-    printf("Garbage Collection\n");
+    print_bucket_name("Garbage Collection", csv);
     dbi = 0;
     MDBX_cursor *cursor;
     rc = mdbx_cursor_open(txn, dbi, &cursor);
@@ -337,7 +387,7 @@ int main(int argc, char *argv[]) {
       error("mdbx_dbi_stat", rc);
       goto txn_abort;
     }
-    print_stat(&mst);
+    print_stat(&mst, csv, print_total_size);
 
     pgno_t pages = 0, *iptr;
     pgno_t reclaimable = 0;
@@ -406,7 +456,7 @@ int main(int argc, char *argv[]) {
       goto txn_abort;
     }
 
-    if (envinfo) {
+    if (envinfo && !csv) {
       uint64_t value = mei.mi_mapsize / mei.mi_dxb_pagesize;
       double percent = value / 100.0;
       printf("Page Usage\n");
@@ -452,8 +502,8 @@ int main(int argc, char *argv[]) {
     error("mdbx_dbi_stat", rc);
     goto txn_abort;
   }
-  printf("Status of %s\n", subname ? subname : "Main DB");
-  print_stat(&mst);
+  print_bucket_name(subname ? subname : "Main DB", csv);
+  print_stat(&mst, csv, print_total_size);
 
   if (alldbs) {
     MDBX_cursor *cursor;
@@ -474,7 +524,7 @@ int main(int argc, char *argv[]) {
       subname[key.iov_len] = '\0';
       rc = mdbx_dbi_open(txn, subname, MDBX_DB_ACCEDE, &subdbi);
       if (rc == MDBX_SUCCESS)
-        printf("Status of %s\n", subname);
+        print_bucket_name(subname, csv);
       mdbx_free(subname);
       if (unlikely(rc != MDBX_SUCCESS)) {
         if (rc == MDBX_INCOMPATIBLE)
@@ -488,7 +538,7 @@ int main(int argc, char *argv[]) {
         error("mdbx_dbi_stat", rc);
         goto txn_abort;
       }
-      print_stat(&mst);
+      print_stat(&mst, csv, print_total_size);
 
       rc = mdbx_dbi_close(env, subdbi);
       if (unlikely(rc != MDBX_SUCCESS)) {
