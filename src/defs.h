@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -106,6 +106,11 @@
 #if !defined(__noop) && !defined(_MSC_VER)
 #   define __noop(...) do {} while(0)
 #endif /* __noop */
+
+#if defined(__fallthrough) &&                                                  \
+    (defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__))
+#undef __fallthrough
+#endif /* __fallthrough workaround for MinGW */
 
 #ifndef __fallthrough
 #  if defined(__cplusplus) && (__has_cpp_attribute(fallthrough) &&             \

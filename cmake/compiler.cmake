@@ -1,4 +1,4 @@
-##  Copyright (c) 2012-2021 Leonid Yuriev <leo@yuriev.ru>.
+##  Copyright (c) 2012-2022 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -89,9 +89,11 @@ if(CMAKE_C_COMPILER_LOADED)
     if(tmp_lcc_marker GREATER -1 AND tmp_e2k_marker GREATER tmp_lcc_marker)
       execute_process(COMMAND ${CMAKE_C_COMPILER} -print-version
         OUTPUT_VARIABLE CMAKE_C_COMPILER_VERSION
-        RESULT_VARIABLE tmp_lcc_probe_result)
+        RESULT_VARIABLE tmp_lcc_probe_result
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
       set(CMAKE_COMPILER_IS_ELBRUSC ON)
       set(CMAKE_C_COMPILER_ID "Elbrus")
+      message(STATUS "Detected Elbrus C compiler ${CMAKE_C_COMPILER_VERSION}")
     else()
       set(CMAKE_COMPILER_IS_ELBRUSC OFF)
     endif()
@@ -113,9 +115,11 @@ if(CMAKE_CXX_COMPILER_LOADED)
     if(tmp_lcc_marker GREATER -1 AND tmp_e2k_marker GREATER tmp_lcc_marker)
       execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-version
         OUTPUT_VARIABLE CMAKE_CXX_COMPILER_VERSION
-        RESULT_VARIABLE tmp_lxx_probe_result)
+        RESULT_VARIABLE tmp_lxx_probe_result
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
       set(CMAKE_COMPILER_IS_ELBRUSCXX ON)
       set(CMAKE_CXX_COMPILER_ID "Elbrus")
+      message(STATUS "Detected Elbrus C++ compiler ${CMAKE_CXX_COMPILER_VERSION}")
     else()
       set(CMAKE_COMPILER_IS_ELBRUSCXX OFF)
     endif()
@@ -227,6 +231,7 @@ else()
   check_compiler_flag("-Wextra" CC_HAS_WEXTRA)
   check_compiler_flag("-Werror" CC_HAS_WERROR)
   check_compiler_flag("-fexceptions" CC_HAS_FEXCEPTIONS)
+  check_compiler_flag("-fno-semantic-interposition" CC_HAS_FNO_SEMANTIC_INTERPOSITION)
   if(CMAKE_CXX_COMPILER_LOADED)
     check_cxx_compiler_flag("-fcxx-exceptions" CC_HAS_FCXX_EXCEPTIONS)
   endif()
@@ -263,9 +268,24 @@ endif()
 if(CMAKE_CXX_COMPILER_LOADED)
   list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
   if(HAS_CXX11 LESS 0)
-    check_compiler_flag("-std=gnu++11" CXX_FALLBACK_STDGNU11)
-    if(NOT CXX_FALLBACK_STDGNU11)
-      check_compiler_flag("-std=c++11" CXX_FALLBACK_STD11)
+    check_cxx_compiler_flag("-std=gnu++11" CXX_FALLBACK_GNU11)
+    if(NOT CXX_FALLBACK_GNU11)
+      check_cxx_compiler_flag("-std=c++11" CXX_FALLBACK_11)
+    endif()
+  endif()
+endif()
+
+# Crutch for mad C compilers and/or CMake to enabling C11
+if(CMAKE_C_COMPILER_LOADED)
+  list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
+  if(HAS_C11 LESS 0)
+    if (MSVC)
+      check_c_compiler_flag("/std:c11" C_FALLBACK_11)
+    else()
+      check_c_compiler_flag("-std=gnu11" C_FALLBACK_GNU11)
+      if(NOT C_FALLBACK_GNU11)
+        check_c_compiler_flag("-std=c11" C_FALLBACK_11)
+      endif()
     endif()
   endif()
 endif()
@@ -442,14 +462,19 @@ if(CMAKE_COMPILER_IS_CLANG)
     unset(clang_search_dirs)
   endif()
 
-  if (CMAKE_CLANG_AR AND CMAKE_CLANG_NM AND CMAKE_CLANG_RANLIB
+  if(CMAKE_CLANG_AR AND CMAKE_CLANG_NM AND CMAKE_CLANG_RANLIB
       AND ((CLANG_LTO_PLUGIN AND CMAKE_LD_GOLD)
         OR (CMAKE_CLANG_LD
           AND NOT (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
             AND CMAKE_SYSTEM_NAME STREQUAL "Linux"))
         OR APPLE))
-    set(CLANG_LTO_AVAILABLE TRUE)
-    message(STATUS "Link-Time Optimization by CLANG/LLVM is available")
+    if(ANDROID AND CMAKE_SYSTEM_VERSION VERSION_LESS 22)
+      set(CLANG_LTO_AVAILABLE FALSE)
+      message(STATUS "Link-Time Optimization by CLANG/LLVM is available but unusable due https://reviews.llvm.org/D79919")
+    else()
+      set(CLANG_LTO_AVAILABLE TRUE)
+      message(STATUS "Link-Time Optimization by CLANG/LLVM is available")
+    endif()
   elseif(CMAKE_TOOLCHAIN_FILE AND NOT CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 7.0)
     set(CLANG_LTO_AVAILABLE TRUE)
     if(NOT CMAKE_CLANG_LD)
@@ -478,7 +503,7 @@ option(ENABLE_BACKTRACE "Enable output of fiber backtrace information in 'show
   is output with resolved function (symbol) names. Otherwise only frame
   addresses are printed." OFF)
 
-set(HAVE_BFD False)
+set(HAVE_BFD FALSE)
 if(ENABLE_BACKTRACE)
   if(NOT (X86_32 OR X86_64) OR NOT CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG})
     # We only know this option to work with gcc
@@ -530,14 +555,24 @@ macro(setup_compile_flags)
   if(CMAKE_CXX_COMPILER_LOADED)
     set(CXX_FLAGS ${INITIAL_CMAKE_CXX_FLAGS})
     # Crutch for old C++ compilers and/or CMake to enabling C++11
-    if(CXX_FALLBACK_STDGNU11)
+    if(CXX_FALLBACK_GNU11)
       add_compile_flags("CXX" "-std=gnu++11")
-    elseif(CXX_FALLBACK_STD11)
+    elseif(CXX_FALLBACK_11)
       add_compile_flags("CXX" "-std=c++11")
     endif()
   endif()
   if(CMAKE_C_COMPILER_LOADED)
     set(C_FLAGS ${INITIAL_CMAKE_C_FLAGS})
+    # Crutch for mad C compilers and/or CMake to enabling C11
+    if(C_FALLBACK_GNU11)
+      add_compile_flags("C" "-std=gnu11")
+    elseif(C_FALLBACK_11)
+      if(MSVC)
+        add_compile_flags("C" "/std:c11")
+      else()
+        add_compile_flags("C" "-std=c11")
+      endif()
+    endif()
   endif()
   set(EXE_LINKER_FLAGS ${INITIAL_CMAKE_EXE_LINKER_FLAGS})
   set(SHARED_LINKER_FLAGS ${INITIAL_CMAKE_SHARED_LINKER_FLAGS})
@@ -549,6 +584,9 @@ macro(setup_compile_flags)
   endif()
   if(CC_HAS_FCXX_EXCEPTIONS)
     add_compile_flags("CXX" "-fcxx-exceptions" "-frtti")
+  endif()
+  if(CC_HAS_FNO_SEMANTIC_INTERPOSITION AND NOT CMAKE_COMPILER_IS_CLANG)
+    add_compile_flags("C;CXX" "-fno-semantic-interposition")
   endif()
   if(MSVC)
     # checks for /EHa or /clr options exists,
@@ -624,7 +662,8 @@ macro(setup_compile_flags)
     if(NOT MSVC_VERSION LESS 1910)
       add_compile_flags("CXX" "/Zc:__cplusplus")
     endif()
-    add_compile_flags("C;CXX" "/utf-8")
+    remove_compile_flag("C;CXX" "/W3")
+    add_compile_flags("C;CXX" "/W4 /utf-8")
   else()
     if(CC_HAS_WALL)
       add_compile_flags("C;CXX" "-Wall")
@@ -716,16 +755,12 @@ macro(setup_compile_flags)
     add_compile_flags("C;CXX" "/GL")
     foreach(linkmode IN ITEMS EXE SHARED STATIC MODULE)
       set(${linkmode}_LINKER_FLAGS "${${linkmode}_LINKER_FLAGS} /LTCG")
-      string(REGEX REPLACE "^(.*)(/INCREMENTAL:NO *)(.*)$" "\\1\\3" ${linkmode}_LINKER_FLAGS "${${linkmode}_LINKER_FLAGS}")
-      string(REGEX REPLACE "^(.*)(/INCREMENTAL:YES *)(.*)$" "\\1\\3" ${linkmode}_LINKER_FLAGS "${${linkmode}_LINKER_FLAGS}")
-      string(REGEX REPLACE "^(.*)(/INCREMENTAL *)(.*)$" "\\1\\3" ${linkmode}_LINKER_FLAGS "${${linkmode}_LINKER_FLAGS}")
+      string(REGEX REPLACE "^(.*)(/INCREMENTAL)(:YES)?(:NO)?( ?.*)$" "\\1\\2:NO\\5" ${linkmode}_LINKER_FLAGS "${${linkmode}_LINKER_FLAGS}")
       string(STRIP "${${linkmode}_LINKER_FLAGS}" ${linkmode}_LINKER_FLAGS)
       foreach(config IN LISTS CMAKE_CONFIGURATION_TYPES ITEMS Release MinSizeRel RelWithDebInfo Debug)
         string(TOUPPER "${config}" config_uppercase)
         if(DEFINED "CMAKE_${linkmode}_LINKER_FLAGS_${config_uppercase}")
-          string(REGEX REPLACE "^(.*)(/INCREMENTAL:NO *)(.*)$" "\\1\\3" altered_flags "${CMAKE_${linkmode}_LINKER_FLAGS_${config_uppercase}}")
-          string(REGEX REPLACE "^(.*)(/INCREMENTAL:YES *)(.*)$" "\\1\\3" altered_flags "${altered_flags}")
-          string(REGEX REPLACE "^(.*)(/INCREMENTAL *)(.*)$" "\\1\\3" altered_flags "${altered_flags}")
+          string(REGEX REPLACE "^(.*)(/INCREMENTAL)(:YES)?(:NO)?( ?.*)$" "\\1\\2:NO\\5" altered_flags "${CMAKE_${linkmode}_LINKER_FLAGS_${config_uppercase}}")
           string(STRIP "${altered_flags}" altered_flags)
           if(NOT "${altered_flags}" STREQUAL "${CMAKE_${linkmode}_LINKER_FLAGS_${config_uppercase}}")
             set(CMAKE_${linkmode}_LINKER_FLAGS_${config_uppercase} "${altered_flags}" CACHE STRING "Altered: '/INCREMENTAL' removed for LTO" FORCE)
@@ -791,20 +826,106 @@ macro(setup_compile_flags)
   unset(MODULE_LINKER_FLAGS)
 endmacro(setup_compile_flags)
 
-if(CMAKE_CXX_COMPILER_LOADED)
-  # determine library for for std::filesystem
-  set(LIBCXX_FILESYSTEM "")
-  if(CMAKE_COMPILER_IS_CLANG)
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-      set(LIBCXX_FILESYSTEM "c++experimental")
-    elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
-      set(LIBCXX_FILESYSTEM "stdc++fs")
-    endif()
-  elseif(CMAKE_COMPILER_IS_GNUCXX AND NOT MINGW)
-    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.3 AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
-      set(LIBCXX_FILESYSTEM "stdc++fs")
+macro(probe_libcxx_filesystem)
+  if(CMAKE_CXX_COMPILER_LOADED AND NOT DEFINED LIBCXX_FILESYSTEM)
+    list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
+    if(NOT HAS_CXX11 LESS 0)
+      include(CMakePushCheckState)
+      include(CheckCXXSourceCompiles)
+      cmake_push_check_state()
+      set(stdfs_probe_save_libraries ${CMAKE_REQUIRED_LIBRARIES})
+      unset(stdfs_probe_clear_cxx_standard)
+      if(NOT DEFINED CMAKE_CXX_STANDARD)
+        list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
+        list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+        if(NOT HAS_CXX17 LESS 0
+            AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5))
+          set(CMAKE_CXX_STANDARD 17)
+        elseif(NOT HAS_CXX14 LESS 0)
+          set(CMAKE_CXX_STANDARD 14)
+        else()
+          set(CMAKE_CXX_STANDARD 11)
+        endif()
+        set(stdfs_probe_clear_cxx_standard ON)
+      endif()
+
+      set(stdfs_probe_code [[
+        #if defined(__SIZEOF_INT128__) && !defined(__GLIBCXX_TYPE_INT_N_0) && defined(__clang__) && __clang_major__ < 4
+        #define __GLIBCXX_BITSIZE_INT_N_0 128
+        #define __GLIBCXX_TYPE_INT_N_0 __int128
+        #endif
+
+        #ifndef __has_include
+        #define __has_include(header) (0)
+        #endif
+        #if __has_include(<version>)
+        #include <version>
+        #endif
+        #include <cstdlib>
+        #include <string>
+        #if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606L
+        #include <string_view>
+        #endif
+
+        #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L
+        #include <filesystem>
+        #else
+        #include <experimental/filesystem>
+        #endif
+
+        #if (defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703L && (!defined(__MAC_OS_X_VERSION_MIN_REQUIRED) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500) && (!defined(__IPHONE_OS_VERSION_MIN_REQUIRED) || __IPHONE_OS_VERSION_MIN_REQUIRED >= 130100))
+        namespace fs = ::std::filesystem;
+        #elif defined(__cpp_lib_experimental_filesystem) && __cpp_lib_experimental_filesystem >= 201406L
+        namespace fs = ::std::experimental::filesystem;
+        #endif
+
+        int main(int argc, const char*argv[]) {
+          fs::path probe(argv[0]);
+          if (argc != 1) throw fs::filesystem_error(std::string("fake"), std::error_code());
+          return fs::is_directory(probe.relative_path());
+        }
+        ]])
+      set(LIBCXX_FILESYSTEM "")
+
+      check_cxx_source_compiles("${stdfs_probe_code}" LIBCXX_FILESYSTEM_none)
+      if(LIBCXX_FILESYSTEM_none)
+        message(STATUS "No linking with additional library needed for std::filesystem")
+      else()
+        set(CMAKE_REQUIRED_LIBRARIES ${stdfs_probe_save_libraries} "stdc++fs")
+        check_cxx_source_compiles("${stdfs_probe_code}" LIBCXX_FILESYSTEM_stdcxxfs)
+        if(LIBCXX_FILESYSTEM_stdcxxfs)
+          set(LIBCXX_FILESYSTEM "stdc++fs")
+          message(STATUS "Linking with ${LIBCXX_FILESYSTEM} is required for std::filesystem")
+        else()
+          set(CMAKE_REQUIRED_LIBRARIES ${stdfs_probe_save_libraries} "c++fs")
+          check_cxx_source_compiles("${stdfs_probe_code}" LIBCXX_FILESYSTEM_cxxfs)
+          if(LIBCXX_FILESYSTEM_cxxfs)
+            set(LIBCXX_FILESYSTEM "c++fs")
+            message(STATUS "Linking with ${LIBCXX_FILESYSTEM} is required for std::filesystem")
+          else()
+            set(CMAKE_REQUIRED_LIBRARIES ${stdfs_probe_save_libraries} "c++experimental")
+            check_cxx_source_compiles("${stdfs_probe_code}" LIBCXX_FILESYSTEM_cxxexperimental)
+            if(LIBCXX_FILESYSTEM_cxxexperimental)
+              set(LIBCXX_FILESYSTEM "c++experimental")
+              message(STATUS "Linking with ${LIBCXX_FILESYSTEM} is required for std::filesystem")
+            else()
+              message(STATUS "No support for std::filesystem")
+            endif()
+          endif()
+        endif()
+      endif()
+
+      set(CMAKE_REQUIRED_LIBRARIES ${stdfs_probe_save_libraries})
+      if(stdfs_probe_clear_cxx_standard)
+        unset(CMAKE_CXX_STANDARD)
+      endif()
+      unset(stdfs_probe_clear_cxx_standard)
+      unset(stdfs_probe_save_libraries)
+      unset(stdfs_probe_code)
+      unset(stdfs_probe_rc)
+      cmake_pop_check_state()
     endif()
   endif()
-endif()
+endmacro(probe_libcxx_filesystem)
 
 cmake_policy(POP)

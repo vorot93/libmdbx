@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2017-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -453,6 +453,8 @@ bailout:
       log_notice("downhill: bailout at commit due '%s'", mdbx_strerror(err));
   }
 
+  if (!rc && err == MDBX_MAP_FULL && config.params.ignore_dbfull)
+    rc = true;
   if (dbi) {
     if (config.params.drop_table && !mode_readonly()) {
       txn_begin(false);
@@ -460,7 +462,8 @@ bailout:
       err = breakable_commit();
       if (unlikely(err != MDBX_SUCCESS)) {
         log_notice("hill: bailout-clean due '%s'", mdbx_strerror(err));
-        return rc;
+        if (err != MDBX_MAP_FULL || !config.params.ignore_dbfull)
+          rc = false;
       }
     } else
       db_table_close(dbi);

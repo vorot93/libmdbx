@@ -1,5 +1,5 @@
 ##
-##  Copyright 2020-2021 Leonid Yuriev <leo@yuriev.ru>
+##  Copyright 2020-2022 Leonid Yuriev <leo@yuriev.ru>
 ##  and other libmdbx authors: please see AUTHORS file.
 ##  All rights reserved.
 ##
@@ -365,7 +365,11 @@ endif()
 if(NOT DEFINED MDBX_C_STANDARD)
   # MSVC >= 19.28 (Microsoft Visual Studio 16.8) is mad!
   #               It unable process Windows SDK headers in the C11 mode!
-  if(HAS_C11 LESS 0 OR (MSVC AND MSVC_VERSION GREATER 1927))
+  if(MSVC AND MSVC_VERSION GREATER 1927 AND NOT MSVC_VERSION GREATER 1929)
+    set(MDBX_C_STANDARD 99)
+    set(C_FALLBACK_11 OFF)
+    set(C_FALLBACK_GNU11 OFF)
+  elseif(HAS_C11 LESS 0 AND NOT C_FALLBACK_GNU11 AND NOT C_FALLBACK_11)
     set(MDBX_C_STANDARD 99)
   else()
     set(MDBX_C_STANDARD 11)
@@ -523,6 +527,11 @@ if(MDBX_BUILD_CXX AND NOT CMAKE_CXX_COMPILER_LOADED)
   message(FATAL_ERROR "MDBX_BUILD_CXX=${MDBX_BUILD_CXX}: The C++ compiler is required to build the C++API.")
 endif()
 
+if(MDBX_BUILD_CXX)
+  # determine library for C++ std::filesystem
+  probe_libcxx_filesystem()
+endif()
+
 # Get version
 fetch_version(MDBX "${CMAKE_CURRENT_SOURCE_DIR}" FALSE)
 message(STATUS "libmdbx version is ${MDBX_VERSION}")
@@ -573,8 +582,10 @@ macro(target_setup_options TARGET)
     set_target_properties(${TARGET} PROPERTIES
       INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>)
   endif()
-  set_target_properties(${TARGET} PROPERTIES
-    C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
+  if(NOT C_FALLBACK_GNU11 AND NOT C_FALLBACK_11)
+    set_target_properties(${TARGET} PROPERTIES
+      C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
+  endif()
   if(MDBX_BUILD_CXX)
     set_target_properties(${TARGET} PROPERTIES
       CXX_STANDARD ${MDBX_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
@@ -606,8 +617,12 @@ macro(libmdbx_setup_libs TARGET MODE)
   elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
     target_link_libraries(${TARGET} ${MODE} log)
   endif()
-  if(MDBX_CXX_STANDARD GREATER_EQUAL 17 AND LIBCXX_FILESYSTEM AND MDBX_BUILD_CXX)
-    target_link_libraries(${TARGET} ${MODE} ${LIBCXX_FILESYSTEM})
+  if(LIBCXX_FILESYSTEM AND MDBX_BUILD_CXX)
+    if(CMAKE_COMPILER_IS_ELBRUSCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 1.26.0
+        AND NOT CMAKE_VERSION VERSION_LESS 3.13)
+      target_link_options(${TARGET} PUBLIC "-Wl,--allow-multiple-definition")
+    endif()
+    target_link_libraries(${TARGET} PUBLIC ${LIBCXX_FILESYSTEM})
   endif()
 endmacro()
 
@@ -626,6 +641,7 @@ if(MDBX_BUILD_SHARED_LIBRARY)
 else()
   set_target_properties(mdbx-static PROPERTIES OUTPUT_NAME mdbx)
 endif()
+target_include_directories(mdbx-static INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 ################################################################################
 
@@ -647,6 +663,7 @@ if(MDBX_BUILD_SHARED_LIBRARY)
     set_target_properties(mdbx PROPERTIES LINK_FLAGS "-fvisibility=hidden")
   endif()
   list(APPEND MDBX_BUILD_FLAGS ${CMAKE_SHARED_LINKER_FLAGS})
+  target_include_directories(mdbx INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 if(MDBX_BUILD_SHARED_LIBRARY AND MDBX_LINK_TOOLS_NONSTATIC)
@@ -685,7 +702,7 @@ if(MDBX_BUILD_TOOLS)
 
   foreach(TOOL mdbx_chk mdbx_copy mdbx_stat mdbx_dump mdbx_load mdbx_drop)
     add_executable(${TOOL} mdbx.h ${MDBX_SOURCE_DIR}/${TOOL}.c ${WINGETOPT_SRC})
-    if(MDBX_C_STANDARD)
+    if(NOT C_FALLBACK_GNU11 AND NOT C_FALLBACK_11)
       set_target_properties(${TOOL} PROPERTIES
         C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
     endif()

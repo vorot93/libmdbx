@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2017-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -95,7 +95,8 @@ bool testcase_nested::teardown() {
       txn_begin(false);
       db_table_drop(dbi);
       int err = breakable_commit();
-      if (unlikely(err != MDBX_SUCCESS)) {
+      if (unlikely(err != MDBX_SUCCESS) &&
+          (err != MDBX_MAP_FULL || !config.params.ignore_dbfull)) {
         log_notice("nested: bailout-clean due '%s'", mdbx_strerror(err));
         ok = false;
       }

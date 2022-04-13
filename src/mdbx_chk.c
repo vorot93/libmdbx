@@ -1,7 +1,7 @@
 /* mdbx_chk.c - memory-mapped database check tool */
 
 /*
- * Copyright 2015-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -138,7 +138,8 @@ static void va_log(MDBX_log_level_t level, const char *msg, va_list args) {
     out = stderr;
   }
 
-  if (!quiet && verbose + 1 >= (unsigned)level) {
+  if (!quiet && verbose + 1 >= (unsigned)level &&
+      (unsigned)level < ARRAY_LENGTH(prefixes)) {
     fflush(nullptr);
     fputs(prefixes[level], out);
     vfprintf(out, msg, args);
@@ -239,6 +240,8 @@ static void MDBX_PRINTF_ARGS(4, 5)
 
     if (!p) {
       p = mdbx_calloc(1, sizeof(*p));
+      if (unlikely(!p))
+        return;
       p->caption = msg;
       p->pr_next = problems_list;
       problems_list = p;
@@ -616,6 +619,8 @@ static int handle_maindb(const uint64_t record_number, const MDBX_val *key,
   }
 
   name = mdbx_malloc(key->iov_len + 1);
+  if (unlikely(!name))
+    return MDBX_ENOMEM;
   memcpy(name, key->iov_base, key->iov_len);
   name[key->iov_len] = '\0';
   userdb_count++;
@@ -935,8 +940,8 @@ static void usage(char *prog) {
   exit(EXIT_INTERRUPTED);
 }
 
-static __inline bool meta_ot(txnid_t txn_a, uint64_t sign_a, txnid_t txn_b,
-                             uint64_t sign_b, const bool wanna_steady) {
+static bool meta_ot(txnid_t txn_a, uint64_t sign_a, txnid_t txn_b,
+                    uint64_t sign_b, const bool wanna_steady) {
   if (txn_a == txn_b)
     return SIGN_IS_STEADY(sign_b);
 
@@ -946,8 +951,8 @@ static __inline bool meta_ot(txnid_t txn_a, uint64_t sign_a, txnid_t txn_b,
   return txn_a < txn_b;
 }
 
-static __inline bool meta_eq(txnid_t txn_a, uint64_t sign_a, txnid_t txn_b,
-                             uint64_t sign_b) {
+static bool meta_eq(txnid_t txn_a, uint64_t sign_a, txnid_t txn_b,
+                    uint64_t sign_b) {
   if (!txn_a || txn_a != txn_b)
     return false;
 
@@ -957,7 +962,7 @@ static __inline bool meta_eq(txnid_t txn_a, uint64_t sign_a, txnid_t txn_b,
   return true;
 }
 
-static __inline int meta_recent(const bool wanna_steady) {
+static int meta_recent(const bool wanna_steady) {
   if (meta_ot(envinfo.mi_meta0_txnid, envinfo.mi_meta0_sign,
               envinfo.mi_meta1_txnid, envinfo.mi_meta1_sign, wanna_steady))
     return meta_ot(envinfo.mi_meta2_txnid, envinfo.mi_meta2_sign,
@@ -971,7 +976,7 @@ static __inline int meta_recent(const bool wanna_steady) {
                : 0;
 }
 
-static __inline int meta_tail(int head) {
+static int meta_tail(int head) {
   switch (head) {
   case 0:
     return meta_ot(envinfo.mi_meta1_txnid, envinfo.mi_meta1_sign,
@@ -1226,7 +1231,7 @@ int main(int argc, char *argv[]) {
   mdbx_setup_debug((verbose < MDBX_LOG_TRACE - 1)
                        ? (MDBX_log_level_t)(verbose + 1)
                        : MDBX_LOG_TRACE,
-                   MDBX_DBG_LEGACY_OVERLAP, logger);
+                   MDBX_DBG_LEGACY_OVERLAP | MDBX_DBG_DONT_UPGRADE, logger);
 
   rc = mdbx_env_create(&env);
   if (rc) {
@@ -1344,11 +1349,11 @@ int main(int argc, char *argv[]) {
     print(" ! backed-pages %" PRIu64 " < %u\n", backed_pages, NUM_METAS);
   if (backed_pages < NUM_METAS || dxbfile_pages < NUM_METAS)
     goto bailout;
-  if (backed_pages > MAX_PAGENO) {
+  if (backed_pages > MAX_PAGENO + 1) {
     print(" ! backed-pages %" PRIu64 " > max-pages %" PRIaPGNO "\n",
-          backed_pages, MAX_PAGENO);
+          backed_pages, MAX_PAGENO + 1);
     ++problems_meta;
-    backed_pages = MAX_PAGENO;
+    backed_pages = MAX_PAGENO + 1;
   }
 
   if ((envflags & (MDBX_EXCLUSIVE | MDBX_RDONLY)) != MDBX_RDONLY) {

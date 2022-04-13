@@ -18,8 +18,10 @@ ahupowerdns
 ahutils
 ailfast
 Akhunov
+Akula
 Aleksey
 alevel
+Alexey
 alexey
 Alfke
 alignas
@@ -101,6 +103,8 @@ biarch
 bibtex
 BIGDATA
 bigdata
+Binance
+binance
 bindir
 binfmt
 binutils
@@ -109,6 +113,7 @@ bitmaps
 bitmask
 bitness
 bitops
+BITSIZE
 blogger
 blogs
 blogspot
@@ -203,6 +208,8 @@ condattr
 condpair
 config
 constexpr
+constmeta
+coprs
 copyable
 copydetails
 copydoc
@@ -290,6 +297,7 @@ ddfd
 ddl
 deadread
 deadwrite
+DEBIAN
 debian
 Debroux
 debrouxl
@@ -301,6 +309,7 @@ defgroup
 delaystart
 Demakov
 demangle
+deno
 DEPRECATEDLIST
 deps
 depthmask
@@ -380,6 +389,7 @@ DVAL
 DVI
 dw
 DWORD
+dwords
 dxb
 dxbfile
 dylib
@@ -414,6 +424,7 @@ ELBRUSCXX
 elif
 elseif
 emoji
+EMSCRIPTEN
 emscripten
 EMULTIVAL
 emulu
@@ -481,6 +492,7 @@ Exa
 exactkey
 exactp
 excpt
+EXDEV
 exe
 executables
 exename
@@ -501,6 +513,7 @@ FCXX
 fd
 fdatasync
 featuredarticles
+fedorainfracloud
 fedotov
 FEEDNAME
 feof
@@ -527,6 +540,7 @@ FIXME
 fjvallarino
 flagbit
 flg
+Flibmdbx
 flipcoin
 flushall
 FNO
@@ -654,9 +668,11 @@ hlp
 HOfynt
 hostid
 HOSTUUID
+hotfix
 hpp
 hppa
 hpux
+href
 hrows
 hsr
 htags
@@ -670,9 +686,11 @@ Hubert's
 hxx
 hyc
 hyperlink
+hypotetic
 IBERTY
 IBMC
 ibmxl
+idempotence
 idl
 idx
 ieeetr
@@ -723,6 +741,7 @@ intrinsics
 inttypes
 ioarena
 IODQ
+IOPs
 iops
 iostream
 iov
@@ -745,6 +764,7 @@ IRWXU
 isa
 isatty
 ISDIR
+iset
 ISOC
 isode
 isprint
@@ -774,6 +794,7 @@ jgamble
 jmp
 jpg
 json
+kaiwetlesen
 kbuf
 Kerollmops
 kerr
@@ -803,6 +824,7 @@ Kuntze
 kurt
 kuznik
 kval
+kwetlesen
 Lanfranchi
 largedata
 largepage
@@ -818,7 +840,11 @@ lcklist
 LDAP
 LDFLAGS
 leafnode
+Ledgerwatch
+ledgerwatch
 leetal
+Leier
+leisim
 len
 lenfast
 Lenovo
@@ -840,6 +866,7 @@ libmdbx
 libmera
 libmithrildb
 libpthread
+libstdc
 LIFORECLAIM
 lineno
 linkedin
@@ -1069,6 +1096,7 @@ naumov
 nbytes
 ncpfs
 NDEBUG
+ndk
 nelem
 nentries
 nessdb
@@ -1093,6 +1121,7 @@ noaccount
 nocache
 NOCANDO
 nocheckloglevel
+nochk
 NOCORE
 NOCTTY
 nodedata
@@ -1152,6 +1181,7 @@ nthreads
 ntifs
 ntpl
 ntstatus
+nttld
 nullkey
 nullptr
 numdbs
@@ -1214,6 +1244,7 @@ oublock
 OUTOFMEMORY
 ov
 overf
+overrided
 ovpage
 pageable
 pagecache
@@ -1224,6 +1255,7 @@ pagemap
 pageno
 pagenums
 PAGEPERTURB
+PAGEROOM
 pageroom
 pagetype
 par
@@ -1256,6 +1288,7 @@ PFILE
 pflags
 pgcount
 PGL
+pgl
 pglist
 pgno
 pgnumber
@@ -1301,6 +1334,7 @@ powerpc
 ppc
 pragma
 pread
+PREALLOC
 prealloc
 PREDEF
 prefetch
@@ -1461,6 +1495,7 @@ rpath
 rpb
 rpcc
 rpid
+RPMs
 rqest
 rr
 RRF
@@ -1752,6 +1787,7 @@ toolset
 tooltip
 torquem
 TOUPPER
+Transcoder
 transcoder
 transcoding
 treeview
@@ -1904,6 +1940,7 @@ wdm
 webassembly
 webclient
 WERROR
+Wetlesen
 WEXITSTATUS
 WEXTRA
 whitelist

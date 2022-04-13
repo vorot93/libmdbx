@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2017-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -50,8 +50,8 @@ bool testcase_jitter::run() {
       check_dbi_error(MDBX_SUCCESS, "created-uncommitted");
       // note: here and below the 4-byte length keys and value are used
       //       to be compatible with any Db-flags given from command line.
-      MDBX_val key = {(void *)"k000", 4}, value = {(void *)"v001", 4};
-      err = mdbx_put(txn_guard.get(), dbi, &key, &value, MDBX_UPSERT);
+      MDBX_val k = {(void *)"k000", 4}, v = {(void *)"v001", 4};
+      err = mdbx_put(txn_guard.get(), dbi, &k, &v, MDBX_UPSERT);
       if (err != MDBX_SUCCESS)
         failure_perror("jitter.put-1", err);
       txn_end(false);
@@ -69,16 +69,16 @@ bool testcase_jitter::run() {
 
       // check after aborted txn
       txn_begin(false);
-      value = {(void *)"v002", 4};
-      err = mdbx_put(txn_guard.get(), dbi, &key, &value, MDBX_UPSERT);
+      v = {(void *)"v002", 4};
+      err = mdbx_put(txn_guard.get(), dbi, &k, &v, MDBX_UPSERT);
       if (err != MDBX_BAD_DBI)
         failure_perror("jitter.put-2", err);
       check_dbi_error(MDBX_BAD_DBI, "dropped-recreated-aborted");
       // restore DBI
       dbi = db_table_open(false);
       check_dbi_error(MDBX_SUCCESS, "dropped-recreated-aborted+reopened");
-      value = {(void *)"v003", 4};
-      err = mdbx_put(txn_guard.get(), dbi, &key, &value, MDBX_UPSERT);
+      v = {(void *)"v003", 4};
+      err = mdbx_put(txn_guard.get(), dbi, &k, &v, MDBX_UPSERT);
       if (err != MDBX_SUCCESS)
         failure_perror("jitter.put-3", err);
       txn_end(false);
@@ -110,21 +110,25 @@ bool testcase_jitter::run() {
     if (!mode_readonly()) {
       fetch_canary();
       update_canary(1);
-      err = mdbx_env_set_geometry(
-          db_guard.get(), -1, -1,
-          coin4size ? upper_limit * 2 / 3 : upper_limit * 3 / 2, -1, -1, -1);
-      if (err != MDBX_SUCCESS && err != MDBX_UNABLE_EXTEND_MAPSIZE &&
-          err != MDBX_MAP_FULL && err != MDBX_TOO_LARGE)
-        failure_perror("mdbx_env_set_geometry-1", err);
+      if (global::config::geometry_jitter) {
+        err = mdbx_env_set_geometry(
+            db_guard.get(), -1, -1,
+            coin4size ? upper_limit * 2 / 3 : upper_limit * 3 / 2, -1, -1, -1);
+        if (err != MDBX_SUCCESS && err != MDBX_UNABLE_EXTEND_MAPSIZE &&
+            err != MDBX_MAP_FULL && err != MDBX_TOO_LARGE && err != MDBX_EPERM)
+          failure_perror("mdbx_env_set_geometry-1", err);
+      }
     }
     txn_end(flipcoin());
 
-    err = mdbx_env_set_geometry(
-        db_guard.get(), -1, -1,
-        !coin4size ? upper_limit * 2 / 3 : upper_limit * 3 / 2, -1, -1, -1);
-    if (err != MDBX_SUCCESS && err != MDBX_UNABLE_EXTEND_MAPSIZE &&
-        err != MDBX_MAP_FULL && err != MDBX_TOO_LARGE)
-      failure_perror("mdbx_env_set_geometry-2", err);
+    if (global::config::geometry_jitter) {
+      err = mdbx_env_set_geometry(
+          db_guard.get(), -1, -1,
+          !coin4size ? upper_limit * 2 / 3 : upper_limit * 3 / 2, -1, -1, -1);
+      if (err != MDBX_SUCCESS && err != MDBX_UNABLE_EXTEND_MAPSIZE &&
+          err != MDBX_MAP_FULL && err != MDBX_TOO_LARGE && err != MDBX_EPERM)
+        failure_perror("mdbx_env_set_geometry-2", err);
+    }
 
     if (flipcoin()) {
       jitter_delay();
@@ -133,12 +137,14 @@ bool testcase_jitter::run() {
       txn_end(flipcoin());
     }
 
-    jitter_delay();
-    err =
-        mdbx_env_set_geometry(db_guard.get(), -1, -1, upper_limit, -1, -1, -1);
-    if (err != MDBX_SUCCESS && err != MDBX_UNABLE_EXTEND_MAPSIZE &&
-        err != MDBX_MAP_FULL && err != MDBX_TOO_LARGE)
-      failure_perror("mdbx_env_set_geometry-3", err);
+    if (global::config::geometry_jitter) {
+      jitter_delay();
+      err = mdbx_env_set_geometry(db_guard.get(), -1, -1, upper_limit, -1, -1,
+                                  -1);
+      if (err != MDBX_SUCCESS && err != MDBX_UNABLE_EXTEND_MAPSIZE &&
+          err != MDBX_MAP_FULL && err != MDBX_TOO_LARGE && err != MDBX_EPERM)
+        failure_perror("mdbx_env_set_geometry-3", err);
+    }
 
     db_close();
 

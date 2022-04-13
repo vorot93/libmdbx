@@ -1,4 +1,4 @@
-##  Copyright (c) 2012-2021 Leonid Yuriev <leo@yuriev.ru>.
+##  Copyright (c) 2012-2022 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -35,6 +35,23 @@ macro(add_compile_flags languages)
   unset(_lang)
   unset(_flags)
 endmacro(add_compile_flags)
+
+macro(remove_flag varname flag)
+  string(REGEX REPLACE "^(.*)( ${flag} )(.*)$" "\\1 \\3" ${varname} ${${varname}})
+  string(REGEX REPLACE "^((.+ )*)(${flag})(( .+)*)$" "\\1\\4" ${varname} ${${varname}})
+endmacro(remove_flag)
+
+macro(remove_compile_flag languages flag)
+  foreach(_lang ${languages})
+    if(CMAKE_CXX_COMPILER_LOADED AND _lang STREQUAL "CXX")
+      remove_flag(${_lang}_FLAGS ${flag})
+    endif()
+    if(CMAKE_C_COMPILER_LOADED AND _lang STREQUAL "C")
+      remove_flag(${_lang}_FLAGS ${flag})
+    endif()
+  endforeach()
+  unset(_lang)
+endmacro(remove_compile_flag)
 
 macro(set_source_files_compile_flags)
   foreach(file ${ARGN})
@@ -75,13 +92,13 @@ macro(fetch_version name source_root_directory parent_scope)
   set(${name}_GIT_REVISION 0)
   set(${name}_GIT_VERSION "")
   if(GIT AND EXISTS "${source_root_directory}/.git")
-    execute_process(COMMAND ${GIT} describe --tags --long --dirty=-dirty
+    execute_process(COMMAND ${GIT} describe --tags --long --dirty=-dirty "--match=v[0-9]*"
       OUTPUT_VARIABLE ${name}_GIT_DESCRIBE
       OUTPUT_STRIP_TRAILING_WHITESPACE
       WORKING_DIRECTORY ${source_root_directory}
       RESULT_VARIABLE rc)
     if(rc OR "${name}_GIT_DESCRIBE" STREQUAL "")
-      message(FATAL_ERROR "Please fetch tags and/or install latest version of git ('describe --tags --long --dirty' failed)")
+      message(FATAL_ERROR "Please fetch tags and/or install latest version of git ('describe --tags --long --dirty --match=v[0-9]*' failed)")
     endif()
 
     execute_process(COMMAND ${GIT} show --no-patch --format=%cI HEAD

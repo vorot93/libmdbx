@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2017-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -32,8 +32,14 @@
 
 #if defined(__APPLE__) && (MDBX_LOCKING == MDBX_LOCKING_POSIX2001 ||           \
                            MDBX_LOCKING == MDBX_LOCKING_POSIX2008)
-#include "darwin/pthread_barrier.c"
+#include "stub/pthread_barrier.c"
 #endif /* __APPLE__ && MDBX_LOCKING >= MDBX_LOCKING_POSIX2001 */
+
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 24 &&                        \
+    (MDBX_LOCKING == MDBX_LOCKING_POSIX2001 ||                                 \
+     MDBX_LOCKING == MDBX_LOCKING_POSIX2008)
+#include "stub/pthread_barrier.c"
+#endif /* __ANDROID_API__ < 24 && MDBX_LOCKING >= MDBX_LOCKING_POSIX2001 */
 
 #if MDBX_LOCKING == MDBX_LOCKING_SYSV
 #include <sys/ipc.h>

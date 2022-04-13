@@ -17,6 +17,133 @@ ChangeLog
  - Packages for [Astra Linux](https://astralinux.ru/), [ALT Linux](https://www.altlinux.org/), [ROSA Linux](https://www.rosalinux.ru/), etc.
 
 
+## v0.11.7 (underway)
+
+New:
+
+ - Added the `tools-static` make target to build statically linked MDBX tools.
+ - Support for Microsoft Visual Studio 2022.
+ - Support build by MinGW' make from command line without CMake.
+ - Added `mdbx::filesystem` C++ API namespace that corresponds to `std::filesystem` or `std::experimental::filesystem`.
+
+Fixes:
+
+ - Fixed a race between starting a transaction and creating a DBI descriptor that could lead to `SIGSEGV` in the cursor tracking code.
+ - Clarified description of `MDBX_EPERM` error returned from `mdbx_env_set_geometry()`.
+ - Fixed non-promoting the parent transaction to be dirty in case the undo of the geometry update failed during abortion of a nested transaction.
+ - Resolved linking issues with `libstdc++fs`/`libc++fs`/`libc++experimental` for C++ `std::filesystem` or `std::experimental::filesystem` for legacy compilers.
+ - Added workaround for GNU Make 3.81 and earlier.
+ - Added workaround for Elbrus/LCC 1.25 compiler bug of class inline `static constexpr` member field.
+ - [Fixed](https://github.com/ledgerwatch/erigon/issues/3874) minor assertion regression (only debug builds were affected).
+
+Minors:
+
+ - Resolve minor MSVC warnings: avoid `/INCREMENTAL[:YES]` with `/LTCG`, `/W4` with `/W3`, the `C5105` warning.
+ - Switched to using `MDBX_EPERM` instead of `MDBX_RESULT_TRUE' to indicate that the geometry cannot be updated.
+ - Added `NULL` checking during memory allocation inside `mdbx_chk`.
+ - Resolved all warnings from MinGW while used without CMake.
+
+
+## v0.11.6 (scheduled for 2022-03-24)
+
+The stable release with the complete workaround for an incoherence flaw of Linux unified page/buffer cache.
+Nonetheless the cause for this trouble may be an issue of Intel CPU cache/MESI.
+See [issue#269](https://github.com/erthink/libmdbx/issues/269) for more information.
+
+Acknowledgements:
+
+ - [David Bouyssié](https://github.com/david-bouyssie) for [Scala bindings](https://github.com/david-bouyssie/mdbx4s).
+ - [Michelangelo Riccobene](https://github.com/mriccobene) for reporting and testing.
+
+Fixes:
+
+ - [Added complete workaround](https://github.com/erthink/libmdbx/issues/269) for an incoherence flaw of Linux unified page/buffer cache.
+ - [Fixed](https://github.com/erthink/libmdbx/issues/272) cursor reusing for read-only transactions.
+ - Fixed copy&paste typo inside `mdbx::cursor::find_multivalue()`.
+
+Minors:
+
+ - Minor refine C++ API for convenience.
+ - Minor internals refines.
+ - Added `lib-static` and `lib-shared` targets for make.
+ - Added minor workaround for AppleClang 13.3 bug.
+ - Clarified error messages of a signature/version mismatch.
+
+
+## v0.11.5 at 2022-02-23
+
+The release with the temporary hotfix for a flaw of Linux unified page/buffer cache.
+See [issue#269](https://github.com/erthink/libmdbx/issues/269) for more information.
+
+Acknowledgements:
+
+ - [Simon Leier](https://github.com/leisim) for reporting and testing.
+ - [Kai Wetlesen](https://github.com/kaiwetlesen) for [RPMs](http://copr.fedorainfracloud.org/coprs/kwetlesen/libmdbx/).
+ - [Tullio Canepa](https://github.com/canepat) for reporting C++ API issue and contributing.
+
+Fixes:
+
+ - [Added hotfix](https://github.com/erthink/libmdbx/issues/269) for a flaw of Linux unified page/buffer cache.
+ - [Fixed/Reworked](https://github.com/erthink/libmdbx/pull/270) move-assignment operators for "managed" classes of C++ API.
+ - Fixed potential `SIGSEGV` while open DB with overrided non-default page size.
+ - [Made](https://github.com/erthink/libmdbx/issues/267) `mdbx_env_open()` idempotence in failure cases.
+ - Refined/Fixed pages reservation inside `mdbx_update_gc()` to avoid non-reclamation in a rare cases.
+ - Fixed typo in a retained space calculation for the hsr-callback.
+
+Minors:
+
+ - Reworked functions for meta-pages, split-off non-volatile.
+ - Disentangled C11-atomic fences/barriers and pure-functions (with `__attribute__((__pure__))`) to avoid compiler misoptimization.
+ - Fixed hypotetic unaligned access to 64-bit dwords on ARM with `__ARM_FEATURE_UNALIGNED` defined.
+ - Reasonable paranoia that makes clarity for code readers.
+ - Minor fixes Doxygen references, comments, descriptions, etc.
+
+
+## v0.11.4 at 2022-02-02
+
+The stable release with fixes for large and huge databases sized of 4..128 TiB.
+
+Acknowledgements:
+
+ - [Ledgerwatch](https://github.com/ledgerwatch), [Binance](https://github.com/binance-chain) and [Positive Technologies](https://www.ptsecurity.com/) teams for reporting, assistance in investigation and testing.
+ - [Alex Sharov](https://github.com/AskAlexSharov) for reporting, testing and provide resources for remote debugging/investigation.
+ - [Kris Zyp](https://github.com/kriszyp) for [Deno](https://deno.land/) support.
+
+New features, extensions and improvements:
+
+ - Added treating the `UINT64_MAX` value as maximum for given option inside `mdbx_env_set_option()`.
+ - Added `to_hex/to_base58/to_base64::output(std::ostream&)` overloads without using temporary string objects as buffers.
+ - Added `--geometry-jitter=YES|no` option to the test framework.
+ - Added support for [Deno](https://deno.land/) support by [Kris Zyp](https://github.com/kriszyp).
+
+Fixes:
+
+ - Fixed handling `MDBX_opt_rp_augment_limit` for GC's records from huge transactions (Erigon/Akula/Ethereum).
+ - [Fixed](https://github.com/erthink/libmdbx/issues/258) build on Android (avoid including `sys/sem.h`).
+ - [Fixed](https://github.com/erthink/libmdbx/pull/261) missing copy assignment operator for `mdbx::move_result`.
+ - Fixed missing `&` for `std::ostream &operator<<()` overloads.
+ - Fixed unexpected `EXDEV` (Cross-device link) error from `mdbx_env_copy()`.
+ - Fixed base64 encoding/decoding bugs in auxillary C++ API.
+ - Fixed overflow of `pgno_t` during checking PNL on 64-bit platforms.
+ - [Fixed](https://github.com/erthink/libmdbx/issues/260) excessive PNL checking after sort for spilling.
+ - Reworked checking `MAX_PAGENO` and DB upper-size geometry limit.
+ - [Fixed](https://github.com/erthink/libmdbx/issues/265) build for some combinations of versions of  MSVC and Windows SDK.
+
+Minors:
+
+ - Added workaround for CLANG bug [D79919/PR42445](https://reviews.llvm.org/D79919).
+ - Fixed build test on Android (using `pthread_barrier_t` stub).
+ - Disabled C++20 concepts for CLANG < 14 on Android.
+ - Fixed minor `unused parameter` warning.
+ - Added CI for Android.
+ - Refine/cleanup internal logging.
+ - Refined line splitting inside hex/base58/base64 encoding to avoid `\n` at the end.
+ - Added workaround for modern libstdc++ with CLANG < 4.x
+ - Relaxed txn-check rules for auxiliary functions.
+ - Clarified a comments and descriptions, etc.
+ - Using the `-fno-semantic interposition` option to reduce the overhead to calling self own public functions.
+
+
 ## v0.11.3 at 2021-12-31
 
 Acknowledgements:

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2017-2022 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -68,6 +68,7 @@ extern bool cleanup_after;
 extern bool failfast;
 extern bool progress_indicator;
 extern bool console_mode;
+extern bool geometry_jitter;
 } /* namespace config */
 
 } /* namespace global */
@@ -215,12 +216,12 @@ protected:
 #endif /* SPECULUM_CURSORS */
   void speculum_check_iterator(const char *where, const char *stage,
                                const testcase::SET::const_iterator &it,
-                               const MDBX_val &key, const MDBX_val &data) const;
+                               const MDBX_val &k, const MDBX_val &v) const;
 
   void verbose(const char *where, const char *stage,
                const testcase::SET::const_iterator &it) const;
-  void verbose(const char *where, const char *stage, const MDBX_val &key,
-               const MDBX_val &data, int err = MDBX_SUCCESS) const;
+  void verbose(const char *where, const char *stage, const MDBX_val &k,
+               const MDBX_val &v, int err = MDBX_SUCCESS) const;
 
   bool is_same(const Item &a, const Item &b) const;
   bool is_same(const SET::const_iterator &it, const MDBX_val &k,

@@ -31,6 +31,7 @@ set(LIBMDBX_TEST_SOURCES
   )
 
 if(NOT MDBX_BUILD_CXX)
+  probe_libcxx_filesystem()
   list(APPEND LIBMDBX_TEST_SOURCES "${MDBX_SOURCE_DIR}/mdbx.c++" ../mdbx.h++)
 endif()
 
@@ -44,6 +45,14 @@ endif()
 set_target_properties(mdbx_test PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>)
 target_setup_options(mdbx_test)
+
+if(NOT MDBX_BUILD_CXX AND LIBCXX_FILESYSTEM)
+  if(CMAKE_COMPILER_IS_ELBRUSCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 1.26.0
+      AND NOT CMAKE_VERSION VERSION_LESS 3.13)
+    target_link_options(mdbx_test PRIVATE "-Wl,--allow-multiple-definition")
+  endif()
+  target_link_libraries(mdbx_test ${LIBCXX_FILESYSTEM})
+endif()
 
 target_link_libraries(mdbx_test ${TOOL_MDBX_LIB} ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
